@@ -1,0 +1,3 @@
+names = ["Banjo", "Kazooie", "GruntyBK", "GruntyBT", "SexyGrunty", "MumboBK", "MumboBT", "Bottles", "Conga", "Boggy", "Vile", "Klungo", "Humba", "Patch", "Saucer", "Mingella", "Blobbelda", "Orange"];
+
+settings = {"rewardname":"Textbox on Stream","drawOutline":false,"allowRefollows":false,"fanfareOnFollow":true,"fanfareVol":20,"otherVol":30,"loadBanjo":true,"loadKazooie":true,"loadGruntyBK":true,"loadGruntyBT":true,"loadSexyGrunty":true,"loadMumboBK":false,"loadMumboBT":true,"loadBottles":true,"loadConga":true,"loadBoggy":true,"loadVile":true,"loadKlungo":true,"loadHumba":true,"loadPatch":false,"loadSaucer":true,"loadMingella":true,"loadBlobbelda":false,"loadOrange":true};

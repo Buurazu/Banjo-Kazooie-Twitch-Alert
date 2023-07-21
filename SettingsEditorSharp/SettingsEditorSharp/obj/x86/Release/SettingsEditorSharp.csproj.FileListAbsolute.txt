@@ -1,0 +1,9 @@
+G:\FollowAlertBKBT\FollowAlertXNA2\SettingsEditorSharp\SettingsEditorSharp\bin\Release\SettingsEditorSharp.exe
+G:\FollowAlertBKBT\FollowAlertXNA2\SettingsEditorSharp\SettingsEditorSharp\bin\Release\SettingsEditorSharp.pdb
+G:\FollowAlertBKBT\FollowAlertXNA2\SettingsEditorSharp\SettingsEditorSharp\obj\x86\Release\SettingsEditorSharp.Form1.resources
+G:\FollowAlertBKBT\FollowAlertXNA2\SettingsEditorSharp\SettingsEditorSharp\obj\x86\Release\SettingsEditorSharp.Properties.Resources.resources
+G:\FollowAlertBKBT\FollowAlertXNA2\SettingsEditorSharp\SettingsEditorSharp\obj\x86\Release\SettingsEditorSharp.csproj.GenerateResource.Cache
+G:\FollowAlertBKBT\FollowAlertXNA2\SettingsEditorSharp\SettingsEditorSharp\obj\x86\Release\SettingsEditorSharp.exe
+G:\FollowAlertBKBT\FollowAlertXNA2\SettingsEditorSharp\SettingsEditorSharp\obj\x86\Release\SettingsEditorSharp.pdb
+G:\FollowAlertBKBT\FollowAlertXNA2\SettingsEditorSharp\SettingsEditorSharp\obj\x86\Release\SettingsEditorSharp.csprojAssemblyReference.cache
+G:\FollowAlertBKBT\FollowAlertXNA2\SettingsEditorSharp\SettingsEditorSharp\obj\x86\Release\SettingsEditorSharp.csproj.CoreCompileInputs.cache

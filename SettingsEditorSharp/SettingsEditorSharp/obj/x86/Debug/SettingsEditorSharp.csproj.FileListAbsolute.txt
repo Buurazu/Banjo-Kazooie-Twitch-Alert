@@ -1,0 +1,16 @@
+C:\Users\Hunter\AppData\Local\Temporary Projects\SettingsEditorSharp\bin\Debug\SettingsEditorSharp.exe
+C:\Users\Hunter\AppData\Local\Temporary Projects\SettingsEditorSharp\bin\Debug\SettingsEditorSharp.pdb
+C:\Users\Hunter\AppData\Local\Temporary Projects\SettingsEditorSharp\obj\x86\Debug\SettingsEditorSharp.Form1.resources
+C:\Users\Hunter\AppData\Local\Temporary Projects\SettingsEditorSharp\obj\x86\Debug\SettingsEditorSharp.Properties.Resources.resources
+C:\Users\Hunter\AppData\Local\Temporary Projects\SettingsEditorSharp\obj\x86\Debug\SettingsEditorSharp.csproj.GenerateResource.Cache
+C:\Users\Hunter\AppData\Local\Temporary Projects\SettingsEditorSharp\obj\x86\Debug\SettingsEditorSharp.exe
+C:\Users\Hunter\AppData\Local\Temporary Projects\SettingsEditorSharp\obj\x86\Debug\SettingsEditorSharp.pdb
+G:\FollowAlertBKBT\FollowAlertXNA2\SettingsEditorSharp\SettingsEditorSharp\obj\x86\Debug\SettingsEditorSharp.exe
+G:\FollowAlertBKBT\FollowAlertXNA2\SettingsEditorSharp\SettingsEditorSharp\obj\x86\Debug\SettingsEditorSharp.pdb
+G:\FollowAlertBKBT\FollowAlertXNA2\SettingsEditorSharp\SettingsEditorSharp\bin\Debug\SettingsEditorSharp.exe
+G:\FollowAlertBKBT\FollowAlertXNA2\SettingsEditorSharp\SettingsEditorSharp\bin\Debug\SettingsEditorSharp.pdb
+G:\FollowAlertBKBT\FollowAlertXNA2\SettingsEditorSharp\SettingsEditorSharp\obj\x86\Debug\SettingsEditorSharp.Form1.resources
+G:\FollowAlertBKBT\FollowAlertXNA2\SettingsEditorSharp\SettingsEditorSharp\obj\x86\Debug\SettingsEditorSharp.Properties.Resources.resources
+G:\FollowAlertBKBT\FollowAlertXNA2\SettingsEditorSharp\SettingsEditorSharp\obj\x86\Debug\SettingsEditorSharp.csproj.GenerateResource.Cache
+G:\FollowAlertBKBT\FollowAlertXNA2\SettingsEditorSharp\SettingsEditorSharp\obj\x86\Debug\SettingsEditorSharp.csprojAssemblyReference.cache
+G:\FollowAlertBKBT\FollowAlertXNA2\SettingsEditorSharp\SettingsEditorSharp\obj\x86\Debug\SettingsEditorSharp.csproj.CoreCompileInputs.cache
