@@ -1,0 +1,5 @@
+[{000214A0-0000-0000-C000-000000000046}]
+Prop3=19,11
+[InternetShortcut]
+IDList=
+URL=https://id.twitch.tv/oauth2/authorize?response_type=token&client_id=pd5g495ilsmzgq5rek1rotwqx4o32y&redirect_uri=https://twitchapps.com/tokengen/&scope=channel%3Aread%3Aredemptions

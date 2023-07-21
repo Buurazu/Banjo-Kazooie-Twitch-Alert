@@ -1,0 +1,1133 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<script src="characterMessages.js"></script>
+		<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+		<script src="Content/tmi.min.js"></script>
+		<script src="https://cdn.jsdelivr.net/npm/js-cookie@2/src/js.cookie.min.js"></script>
+		<script src="settings.js"></script>
+		<script>
+			// Huge special thanks to Isotarge and qqwref for code improvements
+
+			// Thank you for looking at my source code. I encourage you to change whatever you want about it, if you know how to. I've tried to comment it pretty well to aid in that!
+			// If you want to change character lines, modify characterMessages.js. If you want Grunty quotes more likely, increase this!
+			var NUMOFGRUNTYS = 2;
+			
+			var names = ["Banjo", "Kazooie", "GruntyBK", "GruntyBT", "MumboBK", "MumboBT", "Conga", "Boggy", "SexyGrunty", "Vile", "Klungo", "Humba", "Patch", "Saucer", "Mingella", "Blobbelda", "Bottles", "Orange", "Loggo", "Jamjars", "Blackeye", "Jolly", "Snacker", "Gobi", "Tiptup", "Napper"];
+			
+			if (typeof settings === 'undefined') {
+				settings = {};
+			}
+			if (settings["rewardname"] == undefined) settings["rewardname"] = "Textbox on Stream";
+			if (settings["drawOutline"] == undefined) settings["drawOutline"] = false;
+			if (settings["allowRefollows"] == undefined) settings["allowRefollows"] = false;
+			if (settings["fanfareOnFollow"] == undefined) settings["fanfareOnFollow"] = true;
+			if (settings["fanfareVol"] == undefined) settings["fanfareVol"] = 20;
+			if (settings["otherVol"] == undefined) settings["otherVol"] = 30;
+			
+			for (i = 0 ; i < names.length; i++) {
+				if (settings["load" + names[i]] == undefined) settings["load" + names[i]] = true;
+			}
+
+			var clientID = "pd5g495ilsmzgq5rek1rotwqx4o32y";
+			var theCode = window.location.hash.substring(1);
+			
+			var chatClient;
+			
+			// Usage: getRandomInt(1000,3000) = a random integer between 1000 and 2999
+			function getRandomInt(min, max) {
+				return Math.floor(Math.random() * (max - min)) + min;
+			}
+
+			function playSound(sound) {
+				var tempAudio = new Audio();
+				tempAudio.src = sound.src;
+				tempAudio.volume = sound.volume;
+				tempAudio.play();
+			}
+
+			// Info about how long mumbles for this character should be, where to position their head,
+			// and their ID (so that B-K Gruntilda and B-T Gruntilda are the same and such)
+			function Info(min, minCutoff, maxCutoff, max, xOffset, yOffset, charID) {
+				this.min = min;
+				this.minCutoff = minCutoff;
+				this.maxCutoff = maxCutoff;
+				this.max = max;
+				this.xOffset = xOffset;
+				this.yOffset = yOffset;
+				this.charID = charID;
+			}
+
+			// The mumble sounds have two versions of themselves (one is a higher/lower pitch); however, you don't want to play a normal-pitch and high-pitch version of the same sound one after another. This takes care of that
+			function Mumble(_sounds) {
+				this.sounds = [];
+				for (i = 0 ; i < _sounds.length; i++) {
+					this.add(_sounds[i]);
+				}
+			}
+			Mumble.prototype.add = function(s) {
+				var temp = new Audio(s);
+				temp.volume = settings.otherVol / 100;
+				this.sounds.push(temp);
+			};
+			Mumble.prototype.duration = function() {
+				return this.sounds[0].duration * 1000;
+			};
+			Mumble.prototype.play = function() {
+				var temp = getRandomInt(0, this.sounds.length);
+				currentPlayingMumble = new Audio();
+				currentPlayingMumble.src = this.sounds[temp].src;
+				currentPlayingMumble.volume = this.sounds[temp].volume;
+				currentPlayingMumble.play();
+			};
+
+			// This is what XNA uses to keep track of positions. Made it easier to port the code to have a Vector2 class
+			function Vector2(X, Y) {
+				this.X = X;
+				this.Y = Y;
+			}
+
+			// This function adds your followers to the doNotNotify list, 100 at a time, up to 2000
+function add100More(theLink) {
+$.ajax({
+type: 'GET',
+ url: 'https://api.twitch.tv/helix/users/follows?first=100&to_id=' + userID + '&after=' + theLink,
+headers: { 
+'Authorization': 'Bearer ' + theCode,
+'Client-ID': clientID },
+success: function(data) {
+				for (i = 0; i < data.data.length; i++) {
+					doNotNotify.push(data.data[i].from_name.toLowerCase());
+				}
+				if (data.data.length == 100 && doNotNotify.length < 2000) { add100More(data.pagination.cursor); }
+			}
+});
+}
+
+			function lengthOfString(s) {
+				var offset = 0;
+				for (i = 0; i < s.length; i++) {
+					offset += font[s.charCodeAt(i)].width - 3;
+				}
+				return offset;
+			}
+			
+			//I'm not sure if I need to do this, I may have accounted for things not in the font already
+			//but better safe than sorry with user input
+			//actually this might be useful for weird japanese names too
+			function ConvertUserText(s) {
+				s = s.toUpperCase();
+				for (i = 0; i < s.length; i++) {
+					if (font[s.charCodeAt(i)] == undefined) {
+						s = s = s.substring(0, i) + ' ' + s.substring(i + 1);
+					}
+				}
+				return s;
+			}
+
+			var currentAlert;
+
+			// Lots and lots of variables.
+			var STEPLENGTH = 30;
+
+			var tbAppear = new Image(); tbAppear.src = "./Content/textboxappearBKJS.png";
+			var outline = new Image(); outline.src = "./Content/textboxappearoutlineBK.png";
+
+			var font = [];
+			for (i = 32; i <= 95; i++) {
+				font[i] = new Image();
+				font[i].src = "./Content/bkfont24/" + i + ".png";
+			}
+			font[10] = new Image();
+			font[10].src = "./Content/bkfont24/10.png";
+
+			var chars = [],
+				charBlinks = [],
+				charSpeaks = [],
+				charInfo = [],
+				charSnds = [];
+
+			function loadSprites(name) {
+				var temp = new Image; temp.src = "./Content/" + name + "/normal.png"; chars.push(temp);
+				var blinks = [];
+				var speaks = [];
+
+				for (i = 0; i < 4; i++) {
+					temp = new Image(); temp.src = "./Content/" + name + "/blink" + (i + 1) + ".png"; blinks.push(temp);
+					temp = new Image(); temp.src = "./Content/" + name + "/speak" + (i + 1) + ".png"; speaks.push(temp);
+				}
+
+				charBlinks.push(blinks);
+				charSpeaks.push(speaks);
+			}
+
+			// Create GRUNTILDA
+			if (settings.loadGruntyBK == true) {
+				for (gruntys = 0; gruntys < NUMOFGRUNTYS; gruntys++) {
+					loadSprites("gruntyresize");
+					charSnds.push([
+						new Mumble(["./Content/charsfx/grunty1-1.wav", "./Content/charsfx/grunty1-2.wav"]),
+						new Mumble(["./Content/charsfx/grunty2-1.wav", "./Content/charsfx/grunty2-2.wav"]),
+						new Mumble(["./Content/charsfx/grunty3-1.wav", "./Content/charsfx/grunty3-2.wav"])
+					]);
+					charInfo.push(new Info(100, 150, 250, 350, 0, 0, GRUNTILDA ));
+				}
+			}
+
+			// Create GRUNTILDA TOOIE
+			if (settings.loadGruntyBT == true) {
+				for (gruntys = 0; gruntys < NUMOFGRUNTYS; gruntys++) {
+					loadSprites("gruntytooieresize");
+					charSnds.push([
+						new Mumble(["./Content/charsfx/grunty1-1.wav", "./Content/charsfx/grunty1-2.wav"]),
+						new Mumble(["./Content/charsfx/grunty2-1.wav", "./Content/charsfx/grunty2-2.wav"]),
+						new Mumble(["./Content/charsfx/grunty3-1.wav", "./Content/charsfx/grunty3-2.wav"])
+					]);
+					charInfo.push(new Info(100, 150, 250, 350, 0, 10, GRUNTILDA ));
+				}
+			}
+
+			// Create SEXYGRUNTILDA
+			if (settings.loadSexyGrunty == true) {
+				loadSprites("sexygruntyresize");
+				charSnds.push([
+					new Mumble(["./Content/charsfx/sexygrunty1.wav", "./Content/charsfx/sexygrunty1-2.wav"]),
+					new Mumble(["./Content/charsfx/sexygrunty2.wav", "./Content/charsfx/sexygrunty2-2.wav"])
+				]);
+				charInfo.push(new Info(150, 200, 250, 400, 2, 14, SEXYGRUNTILDA ));
+			}
+
+			// Create MUMBO TOOIE
+			if (settings.loadMumboBT == true) {
+				loadSprites("mumbotooieresize");
+				charSnds.push([
+					new Mumble(["./Content/charsfx/mumbo1-1.wav", "./Content/charsfx/mumbo1-2.wav"]),
+					new Mumble(["./Content/charsfx/mumbo2-1.wav", "./Content/charsfx/mumbo2-2.wav"]),
+					new Mumble(["./Content/charsfx/mumbo3-1.wav", "./Content/charsfx/mumbo3-2.wav"]),
+					new Mumble(["./Content/charsfx/mumbo4-1.wav", "./Content/charsfx/mumbo4-2.wav"]),
+					new Mumble(["./Content/charsfx/mumbo5-1.wav", "./Content/charsfx/mumbo5-2.wav"])
+				]);
+				charInfo.push(new Info(125, 150, 200, 275, 2, 8, MUMBO));
+			}
+
+			// Create MUMBO KAZOOIE
+			if (settings.loadMumboBK == true) {
+				loadSprites("mumbokazooieresize");
+				charSnds.push([
+					new Mumble(["./Content/charsfx/mumbo1-1.wav", "./Content/charsfx/mumbo1-2.wav"]),
+					new Mumble(["./Content/charsfx/mumbo2-1.wav", "./Content/charsfx/mumbo2-2.wav"]),
+					new Mumble(["./Content/charsfx/mumbo3-1.wav", "./Content/charsfx/mumbo3-2.wav"]),
+					new Mumble(["./Content/charsfx/mumbo4-1.wav", "./Content/charsfx/mumbo4-2.wav"]),
+					new Mumble(["./Content/charsfx/mumbo5-1.wav", "./Content/charsfx/mumbo5-2.wav"])
+				]);
+				charInfo.push(new Info(125, 150, 200, 275, 0, 0, MUMBO ));
+			}
+
+			// Create SAUCER
+			if (settings.loadSaucer == true) {
+				loadSprites("saucerresize");
+				charSnds.push([
+					new Mumble(["./Content/charsfx/saucer1-1.wav", "./Content/charsfx/saucer1-2.wav"]),
+					new Mumble(["./Content/charsfx/saucer2-1.wav", "./Content/charsfx/saucer2-2.wav"])
+				]);
+				charInfo.push(new Info(125, 150, 175, 250, 2, 16, SAUCER));
+			}
+
+			// Create KLUNGO
+			if (settings.loadKlungo == true) {
+				loadSprites("klungoresize");
+				charSnds.push([
+					new Mumble(["./Content/charsfx/klungo1-1.wav", "./Content/charsfx/klungo1-2.wav"]),
+					new Mumble(["./Content/charsfx/klungo2-1.wav", "./Content/charsfx/klungo2-2.wav"]),
+					new Mumble(["./Content/charsfx/klungo3-1.wav", "./Content/charsfx/klungo3-2.wav"])
+				]);
+				charInfo.push(new Info(125, 125, 200, 300, 0, 12, KLUNGO));
+			}
+
+			// Create BANJO
+			if (settings.loadBanjo == true) {
+				loadSprites("banjoresize");
+				charSnds.push([
+					new Mumble(["./Content/charsfx/banjo1.wav", "./Content/charsfx/banjo2.wav", "./Content/charsfx/banjo3.wav"])
+				]);
+				charInfo.push(new Info(125, 150, 200, 225, 0, 12, BANJO));
+			}
+
+			// Create KAZOOIE
+			if (settings.loadKazooie == true) {
+				loadSprites("kazooieresize");
+				charSnds.push([
+					new Mumble(["./Content/charsfx/kazooie1-1.wav", "./Content/charsfx/kazooie1-2.wav"]),
+					new Mumble(["./Content/charsfx/kazooie2-1.wav", "./Content/charsfx/kazooie2-2.wav"]),
+					new Mumble(["./Content/charsfx/kazooie3-1.wav", "./Content/charsfx/kazooie3-2.wav"]),
+					new Mumble(["./Content/charsfx/kazooie4-1.wav", "./Content/charsfx/kazooie4-2.wav"])
+				]);
+				charInfo.push(new Info(100, 175, 250, 300, 0, 12, KAZOOIE));
+			}
+
+			// Create PATCH
+			if (settings.loadPatch == true) {
+				loadSprites("patchresize");
+				charSnds.push([
+					new Mumble(["./Content/charsfx/patch1.wav", "./Content/charsfx/patch2.wav", "./Content/charsfx/patch3.wav"])
+				]);
+				charInfo.push(new Info(125, 175, 225, 300, -10, 6, PATCH));
+			}
+
+			// Create BOGGY
+			if (settings.loadBoggy == true) {
+				loadSprites("boggyresize");
+				charSnds.push([
+					new Mumble(["./Content/charsfx/boggy1.wav", "./Content/charsfx/boggy2.wav", "./Content/charsfx/boggy3.wav", "./Content/charsfx/boggy4.wav"])
+				]);
+				charInfo.push(new Info(175, 175, 225, 275, 3, 12, BOGGY));
+			}
+			var waheySnd = new Mumble(["./Content/charsfx/wahey1.wav", "./Content/charsfx/wahey2.wav"]);
+				waheying = false;
+
+			// Create MINGELLA
+			if (settings.loadMingella == true) {
+				loadSprites("mingellaresize");
+				charSnds.push([
+					new Mumble(["./Content/charsfx/mingella1-1.wav", "./Content/charsfx/mingella1-2.wav", "./Content/charsfx/mingella1-3.wav", "./Content/charsfx/mingella1-4.wav"]),
+					new Mumble(["./Content/charsfx/mingella2-1.wav", "./Content/charsfx/mingella2-2.wav", "./Content/charsfx/mingella2-3.wav", "./Content/charsfx/mingella2-4.wav"]),
+					new Mumble(["./Content/charsfx/mingella3-1.wav", "./Content/charsfx/mingella3-2.wav", "./Content/charsfx/mingella3-3.wav", "./Content/charsfx/mingella3-4.wav"])
+				]);
+				charInfo.push(new Info(225, 250, 325, 450, -4, 2, MINGELLA));
+			}
+
+			// Create BLOBBELDA
+			if (settings.loadBlobbelda == true) {
+				loadSprites("blobbeldaresize");
+				charSnds.push([
+					new Mumble(["./Content/charsfx/blobbelda1-1.wav", "./Content/charsfx/blobbelda1-2.wav", "./Content/charsfx/blobbelda1-3.wav"]),
+					new Mumble(["./Content/charsfx/blobbelda2-1.wav", "./Content/charsfx/blobbelda2-2.wav", "./Content/charsfx/blobbelda2-3.wav"]),
+					new Mumble(["./Content/charsfx/blobbelda3-1.wav", "./Content/charsfx/blobbelda3-2.wav", "./Content/charsfx/blobbelda3-3.wav"])
+				]);
+				charInfo.push(new Info(225, 250, 325, 450, 0, 12, BLOBBELDA));
+			}
+
+			// Create VILE
+			if (settings.loadVile == true) {
+				loadSprites("vileresize");
+				charSnds.push([
+					new Mumble(["./Content/charsfx/vile1.wav", "./Content/charsfx/vile2.wav", "./Content/charsfx/vile3.wav", "./Content/charsfx/vile4.wav"])
+				]);
+				charInfo.push(new Info(125, 175, 250, 350, 2, 18, VILE));
+			}
+
+			// Create HUMBA
+			if (settings.loadHumba == true) {
+				loadSprites("humbaresize");
+				charSnds.push([
+					new Mumble(["./Content/charsfx/humba1-1.wav", "./Content/charsfx/humba1-2.wav"]),
+					new Mumble(["./Content/charsfx/humba2-1.wav", "./Content/charsfx/humba2-2.wav"]),
+					new Mumble(["./Content/charsfx/humba3-1.wav", "./Content/charsfx/humba3-2.wav"])
+				]);
+				charInfo.push(new Info(100, 150, 250, 300, 0, 6, HUMBA));
+			}
+			
+			// Create CONGA
+			if (settings.loadConga == true) {
+				loadSprites("congaresize");
+				charSnds.push([
+					new Mumble(["./Content/charsfx/conga1-1.wav", "./Content/charsfx/conga1-2.wav", "./Content/charsfx/conga1-3.wav"]),
+					new Mumble(["./Content/charsfx/conga2-1.wav", "./Content/charsfx/conga2-2.wav", "./Content/charsfx/conga2-3.wav"]),
+					new Mumble(["./Content/charsfx/conga3-1.wav", "./Content/charsfx/conga3-2.wav", "./Content/charsfx/conga3-3.wav"])
+				]);
+				charInfo.push(new Info(100, 100, 200, 275, 2, 14, CONGA));
+			}
+			
+			// Create ORANGE
+			if (settings.loadOrange == true) {
+				loadSprites("orangeresize");
+				charSnds.push([
+					new Mumble(["./Content/charsfx/orange1.wav", "./Content/charsfx/orange2.wav", "./Content/charsfx/orange3.wav"])
+				]);
+				charInfo.push(new Info(100, 150, 200, 225, 2, 14, ORANGE));
+			}
+			
+			// Create BOTTLES
+			if (settings.loadBottles == true) {
+				loadSprites("bottlesresize");
+				charSnds.push([
+					new Mumble(["./Content/charsfx/bottles1-1.wav", "./Content/charsfx/bottles1-2.wav", "./Content/charsfx/bottles1-3.wav"]),
+					new Mumble(["./Content/charsfx/bottles2-1.wav", "./Content/charsfx/bottles2-2.wav", "./Content/charsfx/bottles2-3.wav"]),
+					new Mumble(["./Content/charsfx/bottles3-1.wav", "./Content/charsfx/bottles3-2.wav", "./Content/charsfx/bottles3-3.wav"])
+				]);
+				charInfo.push(new Info(125, 150, 225, 250, 8, 12, BOTTLES));
+			}
+			
+			// Create LOGGO
+			if (settings.loadLoggo == true) {
+				loadSprites("loggoresize");
+				charSnds.push([
+					new Mumble(["./Content/charsfx/loggo1-1.wav", "./Content/charsfx/loggo1-2.wav", "./Content/charsfx/loggo1-3.wav"]),
+					new Mumble(["./Content/charsfx/loggo2-1.wav", "./Content/charsfx/loggo2-2.wav", "./Content/charsfx/loggo2-3.wav"]),
+					new Mumble(["./Content/charsfx/loggo3-1.wav", "./Content/charsfx/loggo3-2.wav", "./Content/charsfx/loggo3-3.wav"]),
+					new Mumble(["./Content/charsfx/loggo4-1.wav", "./Content/charsfx/loggo4-2.wav", "./Content/charsfx/loggo4-3.wav"]),
+					new Mumble(["./Content/charsfx/loggo5-1.wav", "./Content/charsfx/loggo5-2.wav", "./Content/charsfx/loggo5-3.wav"])
+				]);
+				charInfo.push(new Info(100, 150, 175, 225, 4, 14, LOGGO));
+			}
+			
+			// Create JAMJARS
+			if (settings.loadJamjars == true) {
+				loadSprites("jamjarsresize");
+				charSnds.push([
+					new Mumble(["./Content/charsfx/jamjars1-1.wav", "./Content/charsfx/jamjars1-2.wav", "./Content/charsfx/jamjars1-3.wav"]),
+					new Mumble(["./Content/charsfx/jamjars2-1.wav", "./Content/charsfx/jamjars2-2.wav", "./Content/charsfx/jamjars2-3.wav"]),
+					new Mumble(["./Content/charsfx/jamjars3-1.wav", "./Content/charsfx/jamjars3-2.wav", "./Content/charsfx/jamjars3-3.wav"]),
+					new Mumble(["./Content/charsfx/jamjars4-1.wav", "./Content/charsfx/jamjars4-2.wav", "./Content/charsfx/jamjars4-3.wav"])
+				]);
+				charInfo.push(new Info(125, 150, 200, 275, 4, 12, JAMJARS));
+			}
+			
+			// Create BLACKEYE
+			if (settings.loadBlackeye == true) {
+				loadSprites("blackeyeresize");
+				charSnds.push([
+					new Mumble(["./Content/charsfx/blackeye1-1.wav", "./Content/charsfx/blackeye1-2.wav", "./Content/charsfx/blackeye1-3.wav"]),
+					new Mumble(["./Content/charsfx/blackeye2-1.wav", "./Content/charsfx/blackeye2-2.wav", "./Content/charsfx/blackeye2-3.wav"]),
+					new Mumble(["./Content/charsfx/blackeye3-1.wav", "./Content/charsfx/blackeye3-2.wav", "./Content/charsfx/blackeye3-3.wav"])
+				]);
+				charInfo.push(new Info(150, 175, 225, 275, 2, 12, BLACKEYE));
+			}
+			
+			// Create JOLLY
+			if (settings.loadJolly == true) {
+				loadSprites("jollyresize");
+				charSnds.push([
+					new Mumble(["./Content/charsfx/jolly1-1.wav", "./Content/charsfx/jolly1-2.wav", "./Content/charsfx/jolly1-3.wav"]),
+					new Mumble(["./Content/charsfx/jolly2-1.wav", "./Content/charsfx/jolly2-2.wav", "./Content/charsfx/jolly2-3.wav"])
+				]);
+				charInfo.push(new Info(125, 175, 250, 300, 2, 14, JOLLY));
+			}
+			
+			//Info(min, minCutoff, maxCutoff, max, xOffset, yOffset, charID)
+			
+			if (settings.loadSnacker == true) {
+				loadSprites("snackerresize");
+				charSnds.push([
+					new Mumble(["./Content/charsfx/snacker1.wav", "./Content/charsfx/snacker2.wav", "./Content/charsfx/snacker3.wav", "./Content/charsfx/snacker4.wav"])
+				]);
+				charInfo.push(new Info(100, 175, 250, 275, 2, 14, SNACKER));
+			}
+			if (settings.loadGobi == true) {
+				loadSprites("gobiresize");
+				charSnds.push([
+					new Mumble(["./Content/charsfx/gobi1.wav", "./Content/charsfx/gobi2.wav", "./Content/charsfx/gobi3.wav", "./Content/charsfx/gobi4.wav"])
+				]);
+				charInfo.push(new Info(100, 125, 225, 300, 2, 12, GOBI));
+			}
+			if (settings.loadTiptup == true) {
+				loadSprites("tiptupresize");
+				charSnds.push([
+					new Mumble(["./Content/charsfx/tiptup1.wav", "./Content/charsfx/tiptup2.wav", "./Content/charsfx/tiptup3.wav"])
+				]);
+				charInfo.push(new Info(100, 175, 200, 250, 2, 14, TIPTUP));
+			}
+			if (settings.loadNapper == true) {
+				loadSprites("napperresize");
+				charSnds.push([
+					new Mumble(["./Content/charsfx/napper1.wav", "./Content/charsfx/napper2.wav", "./Content/charsfx/napper3.wav", "./Content/charsfx/napper4.wav"])
+				]);
+				charInfo.push(new Info(100, 150, 200, 275, 2, 12, NAPPER));
+			}
+			
+			var testLast = false
+
+			var fanfare = new Audio("fanfare.wav");
+			fanfare.volume = settings.fanfareVol / 100;
+
+			var tbAppearSnd = new Audio("./Content/tbappearsnd.wav");
+			tbAppearSnd.volume = settings.otherVol / 100;
+
+			var tbDisappearSnd = new Audio("./Content/tbdisappearsnd.wav");
+			tbDisappearSnd.volume = settings.otherVol / 100;
+
+			var nStatus = 0, nTimer = 0, currentPlayingMumble,
+				name = "", line1 = "", line2 = "",
+				selectedChar = -1, currentLine = 0, charTimer = 0, doneWithText = 0,
+				portrait = 0, soundTimer = 0, lastSoundID = 0, soundLength = 0,
+				blinkCountdown = 0, blinkTimer = 0;
+
+			// Failsafe username
+			var username = "they",
+				userID = "",
+				doNotNotify = [],
+				drawOutline = false,
+				allowRefollows = false,
+				queue = [];
+				gifters = [];
+
+			// TEST USERS
+			if (window.location.search == "?test") {
+				setTimeout(makeTestUsers, 4000);
+			}
+
+			function makeTestUsers() {
+					while (queue.length < 2) {
+					newAlert = [];
+					newAlert["type"] = getRandomInt(0,3);
+					newAlert["username"] = "Test_user" + getRandomInt(1,11);
+					newAlert["text"] = ""; newAlert["bits"] = 0;
+					newAlert["fanfare"] = true;
+					queue.push(newAlert);
+				}
+			}
+			
+			var launchTime;
+
+			drawOutline = settings.drawOutline;
+			allowRefollows = settings.allowRefollows;
+
+
+var ws;
+
+// Source: https://www.thepolyglotdeveloper.com/2015/03/create-a-random-nonce-string-using-javascript/
+function nonce(length) {
+    var text = "";
+    var possible = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+    for (var i = 0; i < length; i++) {
+        text += possible.charAt(Math.floor(Math.random() * possible.length));
+    }
+    return text;
+}
+
+function heartbeat() {
+    message = {
+        type: 'PING'
+    };
+    ws.send(JSON.stringify(message));
+}
+
+function listen(topic) {
+    message = {
+        type: 'LISTEN',
+        nonce: nonce(15),
+        data: {
+            topics: [topic],
+            auth_token: theCode
+        }
+    };
+    ws.send(JSON.stringify(message));
+}
+
+function connect() {
+    var heartbeatInterval = 1000 * 60; //ms between PING's
+    var reconnectInterval = 1000 * 3; //ms to wait before reconnect
+    var heartbeatHandle;
+
+    ws = new WebSocket('wss://pubsub-edge.twitch.tv');
+
+    ws.onopen = function(event) {
+        heartbeat();
+        heartbeatHandle = setInterval(heartbeat, heartbeatInterval);
+        listen("channel-points-channel-v1." + userID);
+    };
+
+    ws.onerror = function(error) {
+    };
+
+    ws.onmessage = function(event) {
+        message = JSON.parse(event.data);
+        if (message.data && message.data.message) {
+          theReward = JSON.parse(message.data.message)
+          theTitle = theReward.data.redemption.reward.title;
+		  if (theTitle.toLowerCase() == settings.rewardname.toLowerCase()) {
+		  theUserText = theReward.data.redemption.user_input
+		  newAlert = [];
+			newAlert["type"] = NEWCHANNELPOINTS;
+			newAlert["username"] = "N/A";
+			newAlert["text"] = ConvertUserText(theUserText); newAlert["bits"] = 0;
+			newAlert["fanfare"] = false;
+			queue.push(newAlert);
+		  }
+        }
+        if (message.type == 'RECONNECT') {
+            $('.ws-output').append('INFO: Reconnecting...\n');
+            setTimeout(connect, reconnectInterval);
+        }
+    };
+
+    ws.onclose = function() {
+        clearInterval(heartbeatHandle);
+        setTimeout(connect, reconnectInterval);
+    };
+}
+
+function checkForFollowers() {
+	// Do things with the follow list in here.
+
+$.ajax({
+ type: 'GET',
+ url: 'https://api.twitch.tv/helix/users/follows?to_id=' + userID,
+ headers: {
+	'Authorization': "Bearer " + theCode,
+   'Client-ID': clientID
+ },
+ success: function(data) {
+			//console.log(data);
+			var newestTime = Number(new Date(data.data[0].followed_at));
+			// Get the timestamp of the most recent follow. If it's from before the program's launch time, no new follows have occurred. It it's from after, we have to do stuff
+			if (newestTime > launchTime) {
+				// Now check for each follower if their follow is in this time frame
+				for (i = 0; i < data.data.length; i++) {
+					newestTime = Number(new Date(data.data[i].followed_at))
+					if (newestTime > launchTime) {
+						// Check if they've already been on a notification
+						var name = data.data[i].from_name.toLowerCase();
+						if (doNotNotify.indexOf(name) == -1) {
+										newAlert = [];
+										newAlert["type"] = NEWFOLLOW;
+										newAlert["username"] = name;
+										newAlert["text"] = ""; newAlert["bits"] = 0;
+										newAlert["fanfare"] = settings.fanfareOnFollow;
+										queue.push(newAlert);
+										doNotNotify.push(name);
+									}
+					}
+					else break;
+				}
+			}
+		}
+	});
+}
+
+function checkForGiftsubs() {
+	//Gift subs are sent with username, recipient, and timestamp
+	if (gifters.length > 0) {
+		g = {}
+		// Count how many gifts a given username gave
+		for (const element of gifters) {
+			// Don't do anything if we find a gift sub from the last second, to help make sure they get grouped properly
+			if (Date.now() - element.timestamp < 1000) return;
+		  g[element.username] = g[element.username] + 1 || 1
+		}
+		// If a username only gave 1 gift, queue it like normal
+		for (const element of gifters) {
+			if (g[element.username] == 1) {
+				console.log("found single gift from " + element.username)
+				newAlert = [];
+				newAlert["type"] = NEWSUBSCRIPTION;
+				newAlert["username"] = element.recipient;
+				newAlert["text"] = ""; newAlert["bits"] = 0;
+				newAlert["fanfare"] = true;
+				queue.push(newAlert);
+			}
+		}
+		console.log("clearing gifters")
+		gifters = []
+		
+		// If a username gave more than 1 gift, group it together in a gift message
+		for (const property in g) {
+			console.log("checking " + property)
+			if (g[property] > 1) {
+				console.log("found multi gift from " + property)
+				newAlert = [];
+				newAlert["type"] = NEWGIFTS;
+				newAlert["username"] = property;
+				newAlert["text"] = ""; newAlert["bits"] = g[property];
+				newAlert["fanfare"] = true;
+				queue.push(newAlert);
+			}
+		}
+	}
+}
+
+			// This function was completely rewritten and improved in a hundred ways by qqwref
+			function checkForNotify() {
+				if (queue.length > 0 && nStatus == 0) {
+					nStatus = 1;
+					nTimer = 0;
+					
+					currentAlert = queue.shift();
+					name = currentAlert["username"].toUpperCase();
+					if (name == "ANANONYMOUSGIFTER") name = "ANONYMOUS";
+					type = currentAlert["type"];
+					
+					// Randomly choose which character, and which text, to use.
+					portrait = getRandomInt(0, chars.length);
+					//test newest added character
+					if (testLast) portrait = chars.length-1;
+					
+					var H = 520;
+					// These messages are the hardest part. If you have any good ideas, please feel free to edit them, or suggest them to me.
+					// For the most part I've tried to keep these gender neutral.
+					message = "";
+					
+					if (type != NEWCHANNELPOINTS) {
+						var possibleMessages = charMessages[charInfo[portrait].charID][type];
+						message = possibleMessages[getRandomInt(0,possibleMessages.length)];
+					}
+					else {
+						//check for character name
+						message = currentAlert["text"];
+						var colonSplit = message.split(":");
+						if (colonSplit.length > 1) {
+							var found = false;
+							for (var i = 0; i < charNames.length; i++) {
+								for (var j = 0; j < charNames[i].length; j++) {
+									if (colonSplit[0] == charNames[i][j].toUpperCase()) {
+										for (var k = 0; k < charInfo.length; k++) {
+											if (charInfo[k].charID == i) {
+												portrait = k;
+												message = message.substring(colonSplit[0].length+1).trim();
+												found = true; break;
+											}
+										}
+									}
+								}
+								if (found) break;
+							}
+						}
+					}
+					
+					
+					//bit/bits check and special fun rules
+					var bitStr = "BITS"; var giftStr = "SUBS"; var pluralStr = "S";
+					if (currentAlert["bits"] == 1) { bitStr = "BIT"; giftStr = "SUB"; pluralStr = ""; }
+					if (charInfo[portrait].charID == SAUCER) {
+						name = name.replace(/S/g, "Z");
+						bitStr = bitStr.replace(/S/g, "Z");
+						giftStr = giftStr.replace(/S/g, "Z");
+						pluralStr = pluralStr.replace(/S/g, "Z");
+					}
+					else if (charInfo[portrait].charID == KLUNGO) {
+						name = name.replace(/SS+/g, "S");
+						name = name.replace(/S/g, "SSS");
+						bitStr = bitStr.replace(/S/g, "SSS");
+						giftStr = giftStr.replace(/S/g, "SSS");
+						pluralStr = pluralStr.replace(/S/g, "SSS");
+					}
+					message = message.replace("$#", currentAlert["bits"]);
+					message = message.replace("$B", currentAlert["bits"] + " " + bitStr);
+					message = message.replace("$G", currentAlert["bits"] + " " + giftStr);
+					message = message.replace("$S", pluralStr);
+					message = message.replace("$U", username.toUpperCase());
+					message = ConvertUserText(message);
+					
+					// Divide message into two lines as necessary
+					var cur = name.length-1;
+					do {
+						messageArr = message.replace("$N",name).split(" ");
+						console.log(messageArr);
+						line1 = "";
+						line2 = "";
+						index = 0;
+
+						// Add to line1 until we can't
+						while (lengthOfString(line1) < H && index < messageArr.length) {
+							var newLine = line1;
+							if (index > 0) {
+								newLine += " ";
+							}
+							newLine += messageArr[index];
+							if (lengthOfString(newLine) < H) {
+								line1 = newLine;
+								index++;
+							} else {
+								break;
+							}
+						}
+
+						// Add everything else to line2
+						for (i = 0; i + index < messageArr.length; i++) {
+							if (i > 0) line2 += " ";
+							line2 += messageArr[i+index];
+						}
+
+						// Shorten the username if necessary to fit the text
+						if (lengthOfString(line2) >= H) {
+							if (type != NEWCHANNELPOINTS) {
+								name = name.substr(0, cur) + "...";
+							}
+							//custom user messages get truncated at the end
+							//and if they spam AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA it ends up on only one line
+							else {
+								cur = line2.length-1;
+								while (lengthOfString(line2) >= H) {
+									line2 = line2.substr(0, cur) + "...";
+									cur--;
+								}
+								
+								if (line1 == "") {
+									line1 = line2;
+									line2 = "";
+								}
+							}
+							cur--;
+						}
+					} while (lengthOfString(line2) >= H && name.length > 1); // Make sure the message isn't too long!
+
+					playSound(tbAppearSnd);
+				}
+			}
+			
+			setTimeout(letThingsLoad, 4000);
+			function letThingsLoad() {
+				setInterval(checkForNotify, 1000);
+				setInterval(checkForGiftsubs, 1000);
+			}
+			
+			//time to see if we have an oauth
+function checkForOauthSuccess() {
+					
+//get our ID, initial follows list, watch for channel points, enter chat room, and setInterval for new follower watching
+$.ajax({
+ type: 'GET',
+ url: 'https://api.twitch.tv/helix/users',
+ headers: {
+	'Authorization': 'Bearer ' + theCode,
+   'Client-ID': clientID
+ },
+ error: function(req, err){
+	newAlert = []; newAlert["type"] = NEWCHANNELPOINTS; newAlert["username"] = "N/A";
+	newAlert["text"] = "NEW TOKEN NEEDED! TOKEN GEN URL COPIED! ADD TOKEN AFTER NAME + HASH (.HTML#TOKEN)";
+	newAlert["bits"] = 0; newAlert["fanfare"] = false;
+	queue.push(newAlert);
+	const input = document.createElement('input');
+	  document.body.appendChild(input);
+	  input.value = "https://id.twitch.tv/oauth2/authorize?response_type=token&client_id=pd5g495ilsmzgq5rek1rotwqx4o32y&redirect_uri=https://twitchapps.com/tokengen/&scope=channel%3Aread%3Aredemptions"; input.focus(); input.select();
+	  const result = document.execCommand('copy');
+			document.body.removeChild(input);
+	
+},
+ success: function(data) {
+	newAlert = []; newAlert["type"] = NEWCHANNELPOINTS; newAlert["username"] = "N/A";
+	newAlert["text"] = "AUTHORIZATION SUCCESS!";
+	newAlert["bits"] = 0; newAlert["fanfare"] = false;
+	queue.push(newAlert);
+	
+	userID = data.data[0].id;
+	username = data.data[0].login;
+	//add our channel points watcher
+	$(function() {
+		connect();
+		$('.socket').show()
+		$.ajax({
+			url: "https://id.twitch.tv/oauth2/validate",
+			method: "GET",
+			headers: {
+				"Authorization": "OAuth " + theCode
+			}})
+			.done(function(user) {
+                
+            });
+	});
+	
+	//add our chat watcher for subscriptions and bits
+	chatClient = new tmi.Client({
+		options: { debug: false, messagesLogLevel: "warn" },
+		connection: {
+			reconnect: true,
+			secure: true
+		},
+		identity: {
+			username: 'justinfan1337',
+			password: 'kappa'
+		},
+		channels: [ data.data[0].login ]
+		//channels: [ 'xQc', 'moistcr1tikal', 'Ludwig', 'GamesDoneQuick', 'amouranth' ]
+	});
+	chatClient.connect().catch(console.error);
+	chatClient.on("subscription", function (channel, username, methods ) {
+		newAlert = [];
+		newAlert["type"] = NEWSUBSCRIPTION;
+		newAlert["username"] = username;
+		newAlert["text"] = ""; newAlert["bits"] = 0;
+		newAlert["fanfare"] = true;
+		queue.push(newAlert);
+	});
+	chatClient.on("resub", function (channel, username, methods ) {
+		newAlert = [];
+		newAlert["type"] = NEWSUBSCRIPTION;
+		newAlert["username"] = username;
+		newAlert["text"] = ""; newAlert["bits"] = 0;
+		newAlert["fanfare"] = true;
+		queue.push(newAlert);
+	});
+	chatClient.on("subgift", function (channel, username, methods, recipient ) {
+		console.log("GIFT SUB FROM " + username + " TO " + recipient);
+		newGift = [];
+		newGift["username"] = username;
+		newGift["recipient"] = recipient;
+		newGift["timestamp"] = Date.now();
+		gifters.push(newGift);
+		//newAlert = [];
+		//newAlert["type"] = NEWSUBSCRIPTION;
+		//newAlert["username"] = recipient;
+		//newAlert["text"] = ""; newAlert["bits"] = 0;
+		//newAlert["fanfare"] = true;
+		//queue.push(newAlert);
+	});
+	chatClient.on("cheer", function (channel, userstate, message ) {
+		newAlert = [];
+		newAlert["type"] = NEWDONATION;
+		newAlert["username"] = userstate.username;
+		newAlert["text"] = ""; newAlert["bits"] = userstate.bits;
+		newAlert["fanfare"] = true;
+		queue.push(newAlert);
+	});
+	chatClient.on("message", function (channel, tags, message ) {
+		//console.log(tags);
+		//i have the power (and so do mods)
+		if (tags.username.toLowerCase() == "buurazu" ||
+		(tags.badges != null && (tags.badges.broadcaster == "1" || tags.badges.moderator == "1"))) {
+			if (message.split(' ')[0] == "!say") {
+				newAlert = [];
+				newAlert["type"] = NEWCHANNELPOINTS;
+				newAlert["username"] = "N/A";
+				newAlert["text"] = ConvertUserText(message.substring(5)); newAlert["bits"] = 0;
+				newAlert["fanfare"] = false;
+				queue.push(newAlert);
+			}
+		}
+	});
+
+	//Set the launch time of the program so we know what a new follow is
+	$.ajax({
+		 type: 'GET',
+		 url: 'https://api.twitch.tv/helix/users/follows?first=100&to_id=' + userID,
+		 headers: {
+			'Authorization': "Bearer " + theCode,
+		   'Client-ID': clientID
+		 },
+		 success: function(data) {
+			launchTime = Date.now();
+			// Create the do not notify list?
+			if (allowRefollows == false) {
+				for (i = 0; i < data.data.length; i++) {
+					doNotNotify.push(data.data[i].from_name.toLowerCase());
+				}
+				var nextPage = data.pagination.cursor;
+				add100More(nextPage);
+			}
+		}
+	});
+	}
+});					
+					
+					setInterval(checkForFollowers, 5000);
+				}
+			
+			setTimeout(checkForOauthSuccess, 2000);
+				
+		</script>
+	</head>
+	<body>
+		<canvas id="myCanvas" width="640" height="96" style="border:0px solid #000000;"></canvas>
+		<script>
+			// The canvas.
+			var canvas = document.getElementById("myCanvas");
+			var context = canvas.getContext("2d");
+
+			function update() {
+				// Erase the canvas
+				context.clearRect(0, 0, canvas.width, canvas.height);
+
+				var tbLoc = new Vector2(15, 28);
+				var tbH = 64;
+
+				if (nStatus == 1) {
+					nTimer += STEPLENGTH;
+					if (nTimer < 300) {
+						var xLoc = -96 + Math.floor(nTimer/1.4);
+						if (xLoc > tbLoc.X) { xLoc = tbLoc.X; }
+						context.drawImage(tbAppear, 0, tbH, 640, tbH, xLoc, tbLoc.Y, 640, tbH);
+						if (drawOutline) { context.drawImage(outline, 0, tbH, 640, tbH, xLoc, tbLoc.Y, 640, tbH); }
+						context.drawImage(chars[portrait], charInfo[portrait].xOffset + xLoc - tbLoc.X, charInfo[portrait].yOffset);
+					} else {
+						var frameToShow = Math.floor((nTimer - 300) / 20);
+						if (frameToShow < 1) frameToShow = 1; if (frameToShow > 16) frameToShow = 16;
+						context.drawImage(tbAppear, 0, frameToShow * tbH, 640, tbH, tbLoc.X, tbLoc.Y, 640, tbH);
+						if (drawOutline) { context.drawImage(outline, 0, frameToShow * tbH, 640, tbH, tbLoc.X, tbLoc.Y, 640, tbH); }
+						context.drawImage(chars[portrait], charInfo[portrait].xOffset, charInfo[portrait].yOffset);
+						//charSnds[portrait][0].play();
+						if (nTimer > 660) {
+							nStatus = 2;
+							nTimer = 0;
+							charTimer = 0;
+							selectedChar = 0;
+							currentLine = 1;
+							doneWithText = 0;
+							soundTimer = 0;
+							if (charInfo[portrait].charID != BOGGY || currentAlert["type"] == NEWCHANNELPOINTS) {
+								lastSoundID = getRandomInt(0, charSnds[portrait].length);
+								//Figure out how long this mumble is going to last
+								soundLength = getRandomInt(charInfo[portrait].min, charInfo[portrait].max);
+								if (soundLength < charInfo[portrait].minCutoff || soundLength > charInfo[portrait].maxCutoff) {
+									soundLength = getRandomInt(charInfo[portrait].min, charInfo[portrait].max);
+								}
+								//console.log("Sound length: " + soundLength);
+								charSnds[portrait][lastSoundID].play();
+								waheying = false;
+							} else {
+								// Start a Boggy textbox differently than the rest :3
+								lastSoundID = -1;
+								soundLength = 800;
+								waheySnd.play();
+								waheying = true;
+							}
+
+							if (currentAlert["fanfare"]) playSound(fanfare);
+						}
+					}
+				} else if (nStatus == 2) {
+					context.drawImage(tbAppear, 0, 16 * tbH, 640, tbH, tbLoc.X, tbLoc.Y, 640, tbH);
+					if (drawOutline) { context.drawImage(outline, 0, 16 * tbH, 640, tbH, tbLoc.X, tbLoc.Y, 640, tbH); }
+
+					nTimer += STEPLENGTH;
+					charTimer += STEPLENGTH;
+					if (charTimer >= 30) {
+						var temp;
+						if (currentLine == 1) temp = line1;
+						else temp = line2;
+						if (selectedChar + 1 < temp.length) {
+							var tempc = temp.charAt(selectedChar + 1);
+							// The next character is punctuation. Make it appear slower.
+							// (In B-K, these characters do indeed take a couple more frames to appear)
+							if (tempc == '!' || tempc == '.' || tempc == ',' || tempc == '-' || tempc == '_' || tempc == '?') {
+								if (charTimer >= 90) { selectedChar++; charTimer = 0; }
+							}
+							// Special WAHEY case
+							else if (tempc == '\n' && currentAlert["type"] != NEWCHANNELPOINTS) {
+								if (charTimer >= 510) { selectedChar++; charTimer = 0; }
+							}
+							else { selectedChar++; charTimer = 0; }
+						} else {
+							// The line is over.
+							if (currentLine == 1) {
+								currentLine = 2;
+								selectedChar = 0;
+							} else if (currentLine == 2) {
+								doneWithText += STEPLENGTH;
+								if (blinkCountdown == 0) {
+									blinkCountdown = getRandomInt(1000, 2000);
+									//console.log("Blink countdown: " + blinkCountdown);
+								}
+								selectedChar = line2.length - 1;
+							}
+							charTimer = 0;
+						}
+					}
+					soundTimer += STEPLENGTH;
+					if (blinkCountdown > 0) { blinkCountdown -= STEPLENGTH; }
+
+					// Only play new mumbles if text is still appearing.
+					if (doneWithText == 0) {
+						if (soundTimer >= soundLength) {
+							var temp = getRandomInt(0, charSnds[portrait].length);
+							if (charSnds[portrait].length > 1) {
+								while (temp == lastSoundID) { temp = getRandomInt(0, charSnds[portrait].length); }
+							}
+							lastSoundID = temp;
+
+							// Figure out how long this mumble is going to last
+							soundLength = getRandomInt(charInfo[portrait].min, charInfo[portrait].max);
+							if (soundLength < charInfo[portrait].minCutoff || soundLength > charInfo[portrait].maxCutoff) {
+								soundLength = getRandomInt(charInfo[portrait].min, charInfo[portrait].max);
+							}
+
+							if (currentLine == 2) {
+								if (soundLength > (line2.length - selectedChar) * 30) soundLength = Math.max(charSnds[portrait][lastSoundID].duration(), charInfo[portrait].minCutoff);
+							}
+
+							if (line2 == "") {
+								if (soundLength > (line1.length - selectedChar) * 30) soundLength = Math.max(charSnds[portrait][lastSoundID].duration(), charInfo[portrait].minCutoff);
+							}
+
+							//console.log("Sound length: " + soundLength);
+							currentPlayingMumble.pause();
+							charSnds[portrait][lastSoundID].play();
+							waheying = false;
+							soundTimer = 0;
+						}
+					}
+
+					// Figure out what frame to draw of the character
+					if (soundTimer == 0) {
+						context.drawImage(chars[portrait], charInfo[portrait].xOffset, charInfo[portrait].yOffset);
+					} else if (blinkCountdown < 0) {
+						blinkTimer += STEPLENGTH;
+						var frameToDisplay = Math.floor(blinkTimer / 30);
+						if (frameToDisplay == 0 || frameToDisplay >= 9) context.drawImage(chars[portrait], charInfo[portrait].xOffset, charInfo[portrait].yOffset);
+						else if (frameToDisplay < 5) context.drawImage(charBlinks[portrait][frameToDisplay - 1], charInfo[portrait].xOffset, charInfo[portrait].yOffset);
+						else context.drawImage(charBlinks[portrait][-frameToDisplay + 8], charInfo[portrait].xOffset, charInfo[portrait].yOffset);
+					} else {
+						var L = 30;
+						var length = Math.min(soundLength, L * 10);
+						if (waheying && soundTimer <= 210) length = 210;
+						//if (currentLine == 2) { if (doneWithText > 0 || (length > )) length = L*10; }
+						var numberOfFrames = length / L;
+						var frameToDisplay;
+						var tempTimer = soundTimer;
+						if (waheying && tempTimer > 210) tempTimer -= 210;
+						// First half of animation
+						if (tempTimer >= length) {
+							frameToDisplay = 0;
+						} else if ((tempTimer / L) < numberOfFrames / 2) {
+							frameToDisplay = tempTimer / L;
+						} else {
+							frameToDisplay = numberOfFrames - 1 - (tempTimer / L);
+						}
+						frameToDisplay = Math.floor(frameToDisplay);
+						if (frameToDisplay <= 0) context.drawImage(chars[portrait], charInfo[portrait].xOffset, charInfo[portrait].yOffset);
+						else context.drawImage(charSpeaks[portrait][frameToDisplay - 1], charInfo[portrait].xOffset, charInfo[portrait].yOffset);
+					}
+
+					// Display the characters that should be displayed based on the current line/char
+					var offset = 0;
+					ydraw = (line2 != "") ? 38 : 47;
+
+					if (currentLine == 2) {
+						for (i = 0; i < line1.length; i++) {
+							context.drawImage(font[line1.charCodeAt(i)], offset + 90, ydraw);
+							offset += font[line1.charCodeAt(i)].width - 3;
+						}
+						if (line2 != "") {
+							offset = 0;
+							for (i = 0; i <= selectedChar; i++) {
+								context.drawImage(font[line2.charCodeAt(i)], offset + 90, 56);
+								offset += font[line2.charCodeAt(i)].width - 3;
+							}
+						}
+					} else {
+						for (i = 0; i <= selectedChar; i++) {
+							context.drawImage(font[line1.charCodeAt(i)], offset + 90, ydraw);
+							offset += font[line1.charCodeAt(i)].width - 3;
+						}
+					}
+
+					if (nTimer >= 6000) {
+						nStatus = 3;
+						nTimer = 0;
+						blinkCountdown = 0;
+						blinkTimer = 0;
+						playSound(tbDisappearSnd);
+					}
+				} else if (nStatus == 3) {
+					nTimer += STEPLENGTH;
+					if (nTimer < 330) {
+						var frameToShow = Math.floor(nTimer / 20);
+						if (frameToShow > 15) frameToShow = 15;
+						context.drawImage(tbAppear, 0, (16 * tbH) - frameToShow * tbH, 640, tbH, tbLoc.X, tbLoc.Y, 640, tbH);
+						if (drawOutline) context.drawImage(outline, 0, (16 * tbH) - frameToShow * tbH, 640, tbH, tbLoc.X, tbLoc.Y, 640, tbH);
+						context.drawImage(chars[portrait], charInfo[portrait].xOffset, charInfo[portrait].yOffset);
+					} else {
+						var xLoc = Math.floor(tbLoc.X - ((nTimer - 500) / 1.4));
+						if (xLoc > tbLoc.X) xLoc = tbLoc.X;
+						context.drawImage(tbAppear, 0, tbH, 640, tbH, xLoc, tbLoc.Y, 640, tbH);
+						if (drawOutline) { context.drawImage(outline, 0, tbH, 640, tbH, xLoc, tbLoc.Y, 640, tbH); }
+						context.drawImage(chars[portrait], charInfo[portrait].xOffset + xLoc-tbLoc.X, charInfo[portrait].yOffset);
+						if (nTimer > 630) {
+							nStatus = 0;
+						}
+					}
+				}
+			}
+			setInterval(update, STEPLENGTH);
+		</script>
+	</body>
+</html>
