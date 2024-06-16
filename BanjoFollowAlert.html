@@ -91,13 +91,13 @@
 function add100More(theLink) {
 $.ajax({
 type: 'GET',
- url: 'https://api.twitch.tv/helix/users/follows?first=100&to_id=' + userID + '&after=' + theLink,
+ url: 'https://api.twitch.tv/helix/channels/followers?first=100&broadcaster_id=' + userID + '&after=' + theLink,
 headers: { 
 'Authorization': 'Bearer ' + theCode,
 'Client-ID': clientID },
 success: function(data) {
 				for (i = 0; i < data.data.length; i++) {
-					doNotNotify.push(data.data[i].from_name.toLowerCase());
+					doNotNotify.push(data.data[i].user_login.toLowerCase());
 				}
 				if (data.data.length == 100 && doNotNotify.length < 2000) { add100More(data.pagination.cursor); }
 			}
@@ -562,7 +562,7 @@ function checkForFollowers() {
 
 $.ajax({
  type: 'GET',
- url: 'https://api.twitch.tv/helix/users/follows?to_id=' + userID,
+ url: 'https://api.twitch.tv/helix/channels/followers?broadcaster_id=' + userID,
  headers: {
 	'Authorization': "Bearer " + theCode,
    'Client-ID': clientID
@@ -577,7 +577,7 @@ $.ajax({
 					newestTime = Number(new Date(data.data[i].followed_at))
 					if (newestTime > launchTime) {
 						// Check if they've already been on a notification
-						var name = data.data[i].from_name.toLowerCase();
+						var name = data.data[i].user_login.toLowerCase();
 						if (doNotNotify.indexOf(name) == -1) {
 										newAlert = [];
 										newAlert["type"] = NEWFOLLOW;
@@ -789,7 +789,7 @@ $.ajax({
 	queue.push(newAlert);
 	const input = document.createElement('input');
 	  document.body.appendChild(input);
-	  input.value = "https://id.twitch.tv/oauth2/authorize?response_type=token&client_id=pd5g495ilsmzgq5rek1rotwqx4o32y&redirect_uri=https://twitchapps.com/tokengen/&scope=channel%3Aread%3Aredemptions"; input.focus(); input.select();
+	  input.value = "https://id.twitch.tv/oauth2/authorize?response_type=token&client_id=pd5g495ilsmzgq5rek1rotwqx4o32y&redirect_uri=https://twitchapps.com/tokengen/&scope=moderator%3Aread%3Afollowers%20channel%3Aread%3Aredemptions"; input.focus(); input.select();
 	  const result = document.execCommand('copy');
 			document.body.removeChild(input);
 	
@@ -889,7 +889,7 @@ $.ajax({
 	//Set the launch time of the program so we know what a new follow is
 	$.ajax({
 		 type: 'GET',
-		 url: 'https://api.twitch.tv/helix/users/follows?first=100&to_id=' + userID,
+		 url: 'https://api.twitch.tv/helix/channels/followers?first=100&broadcaster_id=' + userID,
 		 headers: {
 			'Authorization': "Bearer " + theCode,
 		   'Client-ID': clientID
@@ -899,7 +899,7 @@ $.ajax({
 			// Create the do not notify list?
 			if (allowRefollows == false) {
 				for (i = 0; i < data.data.length; i++) {
-					doNotNotify.push(data.data[i].from_name.toLowerCase());
+					doNotNotify.push(data.data[i].user_login.toLowerCase());
 				}
 				var nextPage = data.pagination.cursor;
 				add100More(nextPage);
